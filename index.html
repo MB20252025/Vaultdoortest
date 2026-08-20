@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Safe Door – Binary Puzzle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      background: #1a1410;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ── SCALE CONTROLS (change these numbers) ── */
+    :root {
+      --bolt-scale: 1.0;    /* unlockbolt1/2/3.png */
+      --keypad-scale: 1.0;  /* keypad.jpg */
+      --wheel-scale: 1.0;   /* wheel.png */
+      --bcode-scale: 1.0;   /* bcode.png */
+    }
+
+    /* ── Full‑screen container ── */
+    #safe-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #1a1410; /* fallback – matches door edges */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* ── Door wrapper – keeps aspect ratio, centers, scales to fit ── */
+    #door-wrapper {
+      position: relative;
+      width: min(100vw, calc(100vh * 700 / 550));
+      height: min(100vh, calc(100vw * 550 / 700));
+      background: url('vaultdoor.jpg') no-repeat center / contain;
+      background-color: #2a211c; /* matches door edges */
+      border-radius: 0; /* no frame */
+      box-shadow: none;
+    }
+
+    /* ── BOLT WRAPPERS (positions based on 700x550) ── */
+    .bolt-wrapper {
+      position: absolute;
+      width: 10.86%;   /* 76/700 */
+      height: 8%;      /* 44/550 */
+      z-index: 10;
+      pointer-events: none;
+    }
+    .bolt-wrapper.left-top {
+      top: 15.27%;     /* 84/550 */
+      left: 1.14%;     /* 8/700 */
+    }
+    .bolt-wrapper.left-bottom {
+      top: 61.09%;     /* 336/550 */
+      left: 1.14%;
+    }
+    .bolt-wrapper.right-middle {
+      top: 38.18%;     /* 210/550 */
+      right: 0.86%;    /* 6/700 */
+      left: auto;
+    }
+
+    .bolt-wrapper img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: scale(var(--bolt-scale));
+      transform-origin: center;
+    }
+    .bolt-wrapper.unlocked img {
+      opacity: 1;
+    }
+
+    /* ── KEYPAD ── */
+    #keypad {
+      position: absolute;
+      bottom: 5.82%;    /* 32/550 */
+      right: 4%;        /* 28/700 */
+      width: 12.29%;    /* 86/700 */
+      height: 10.18%;   /* 56/550 */
+      cursor: pointer;
+      z-index: 20;
+      background: url('keypad.jpg') no-repeat center / contain;
+      transition: filter 0.2s, transform 0.1s;
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.7));
+      transform: scale(var(--keypad-scale));
+      transform-origin: center;
+    }
+    #keypad:hover {
+      filter: drop-shadow(0 4px 12px rgba(200, 180, 140, 0.4)) brightness(1.1);
+    }
+    #keypad:active {
+      transform: scale(0.94);
+    }
+
+    /* ── WHEEL ── */
+    #wheel-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 17.14%;    /* 120/700 */
+      height: 21.82%;   /* 120/550 */
+      z-index: 15;
+      transform: translate(-50%, -50%) scale(var(--wheel-scale));
+      transform-origin: center;
+      pointer-events: none;
+    }
+    #wheel {
+      width: 100%;
+      height: 100%;
+      background: url('wheel.png') no-repeat center / contain;
+      cursor: pointer;
+      filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6));
+      transition: filter 0.2s;
+      animation: wheelJiggle 2s ease-in-out infinite;
+      pointer-events: auto;
+    }
+    #wheel:hover {
+      filter: drop-shadow(0 6px 16px rgba(200, 180, 140, 0.3)) brightness(1.05);
+    }
+
+    @keyframes wheelJiggle {
+      0% { transform: rotate(0deg); }
+      25% { transform: rotate(4deg); }
+      75% { transform: rotate(-4deg); }
+      100% { transform: rotate(0deg); }
+    }
+    @keyframes wheelSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    #wheel.spinning {
+      animation: wheelSpin 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      pointer-events: none;
+    }
+
+    /* ── MODAL ── */
+    #modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #modal-overlay.active {
+      display: flex;
+    }
+    .modal-box {
+      background: #1f1814;
+      padding: 30px 30px 24px;
+      border-radius: 28px;
+      border: 2px solid #4a3d35;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.9);
+      text-align: center;
+      max-width: 90%;
+      max-height: 90%;
+      overflow: auto;
+    }
+    .modal-box img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border: 1px solid #3d322c;
+      transform: scale(var(--bcode-scale));
+      transform-origin: center;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      align-items: center;
+    }
+    #unlock-btn {
+      background: #5a4a3a;
+      border: none;
+      color: #f0e6d8;
+      font-size: 1.2rem;
+      font-weight: 600;
+      padding: 12px 36px;
+      border-radius: 40px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #2a1f1a, 0 6px 12px rgba(0, 0, 0, 0.4);
+      transition: 0.08s linear;
+      letter-spacing: 0.5px;
+      background: linear-gradient(145deg, #6b5a4a, #3d322c);
+    }
+    #unlock-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 0px 0 #2a1f1a, 0 6px 12px rgba(0, 0, 0, 0.4);
+    }
+    #unlock-btn:disabled {
+      opacity: 0.5;
+      transform: translateY(4px);
+      box-shadow: 0 0px 0 #2a1f1a;
+      pointer-events: none;
+    }
+    #close-modal {
+      background: none;
+      border: none;
+      color: #b8a89a;
+      font-size: 2rem;
+      cursor: not-allowed;
+      padding: 0 12px;
+      transition: color 0.2s;
+      opacity: 0.5;
+    }
+    #close-modal.enabled {
+      cursor: pointer;
+      opacity: 1;
+      color: #f0e6d8;
+    }
+    #close-modal.enabled:hover {
+      color: #ffccaa;
+    }
+    .modal-status {
+      color: #b8a89a;
+      font-size: 0.9rem;
+      margin-top: 12px;
+      min-height: 1.5em;
+    }
+  </style>
+</head>
+<body>
+
+<div id="safe-container">
+  <div id="door-wrapper">
+    <!-- BOLTS -->
+    <div class="bolt-wrapper left-top" id="bolt1">
+      <img src="unlockbolt1.png" alt="unlock bolt 1" />
+    </div>
+    <div class="bolt-wrapper left-bottom" id="bolt2">
+      <img src="unlockbolt2.png" alt="unlock bolt 2" />
+    </div>
+    <div class="bolt-wrapper right-middle" id="bolt3">
+      <img src="unlockbolt3.png" alt="unlock bolt 3" />
+    </div>
+
+    <!-- KEYPAD -->
+    <div id="keypad" title="Click to access binary puzzle"></div>
+
+    <!-- WHEEL -->
+    <div id="wheel-wrapper">
+      <div id="wheel" title="Spin the wheel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div class="modal-box">
+    <img src="bcode.png" alt="Binary puzzle" id="bcode-img" />
+    <div class="modal-actions">
+      <button id="unlock-btn">🔓 Unlock Door</button>
+      <button id="close-modal" disabled>✕</button>
+    </div>
+    <div class="modal-status" id="modal-status">Click the button to unlock the door.</div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const modalOverlay = document.getElementById('modal-overlay');
+    const unlockBtn = document.getElementById('unlock-btn');
+    const closeModalBtn = document.getElementById('close-modal');
+    const modalStatus = document.getElementById('modal-status');
+    const keypad = document.getElementById('keypad');
+    const wheel = document.getElementById('wheel');
+    const boltWrappers = [
+      document.getElementById('bolt1'),
+      document.getElementById('bolt2'),
+      document.getElementById('bolt3')
+    ];
+
+    let isUnlocked = false;
+    let isSpinning = false;
+    let boltsRevealed = false;
+
+    function showModal() {
+      modalOverlay.classList.add('active');
+      if (!isUnlocked) {
+        modalStatus.textContent = 'Click the button to unlock the door.';
+        unlockBtn.disabled = false;
+        closeModalBtn.disabled = true;
+        closeModalBtn.classList.remove('enabled');
+      } else {
+        modalStatus.textContent = '✅ Door is already unlocked! Close this window.';
+        unlockBtn.disabled = true;
+        closeModalBtn.disabled = false;
+        closeModalBtn.classList.add('enabled');
+      }
+    }
+
+    function hideModal() {
+      modalOverlay.classList.remove('active');
+    }
+
+    function unlockDoor() {
+      if (isUnlocked) return;
+      isUnlocked = true;
+      unlockBtn.disabled = true;
+      closeModalBtn.disabled = false;
+      closeModalBtn.classList.add('enabled');
+      modalStatus.textContent = '✅ Door unlocked! Close this window, then click the wheel.';
+    }
+
+    function revealBolts() {
+      if (boltsRevealed) return;
+      boltsRevealed = true;
+      boltWrappers.forEach((wrapper, index) => {
+        setTimeout(() => {
+          wrapper.classList.add('unlocked');
+        }, index * 400);
+      });
+    }
+
+    function onWheelClick() {
+      if (isSpinning) return;
+      if (!isUnlocked) {
+        wheel.style.animation = 'none';
+        void wheel.offsetHeight;
+        wheel.style.animation = 'wheelJiggle 0.6s ease-in-out 2';
+        setTimeout(() => {
+          wheel.style.animation = 'wheelJiggle 2s ease-in-out infinite';
+        }, 1200);
+        return;
+      }
+
+      isSpinning = true;
+      wheel.style.animation = 'none';
+      void wheel.offsetHeight;
+      wheel.classList.add('spinning');
+
+      setTimeout(() => {
+        wheel.classList.remove('spinning');
+        revealBolts();
+        wheel.style.animation = 'none';
+        isSpinning = false;
+      }, 1800);
+    }
+
+    keypad.addEventListener('click', showModal);
+    unlockBtn.addEventListener('click', unlockDoor);
+    closeModalBtn.addEventListener('click', function() {
+      if (this.disabled) return;
+      hideModal();
+    });
+    wheel.addEventListener('click', onWheelClick);
+    modalOverlay.addEventListener('click', function(e) {
+      if (e.target === modalOverlay && !closeModalBtn.disabled) {
+        hideModal();
+      }
+    });
+
+    boltWrappers.forEach(w => w.classList.remove('unlocked'));
+    console.log('Safe door ready – click keypad to start.');
+  })();
+</script>
+</body>
+</html>
