@@ -30,7 +30,11 @@
       --keypad-scale: 0.8;   /* keypad.jpg – scale if needed */
       --wheel-scale: 1.65;   /* wheel.png */
       --bcode-scale: 1.0;    /* bcode.png – adjust to fit screen */
-      --redlight-scale: 1.5; /* redlight scale */
+      --redlight-scale: 1.0; /* redlight scale */
+      /* ── Bulb case controls ── */
+      --bulbcase-scale: 2; /* scale the bulb case image */
+      --bulbcase-top: 0%;    /* move up/down inside the wrapper */
+      --bulbcase-left: 0%;   /* move left/right inside the wrapper */
     }
 
     /* ── Full‑screen container – centers the door ── */
@@ -116,7 +120,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
+      overflow: visible; /* ← FIX: allows bulb case to grow without clipping */
+      position: relative;
     }
 
     /* Outer glow halo */
@@ -151,6 +156,23 @@
       flex-shrink: 0;
       filter: drop-shadow(0 0 15px rgba(255, 0, 0, 0.4));
       transition: background 0.8s ease, box-shadow 0.8s ease, filter 0.8s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── BULB CASE (frame overlay) ── */
+    #bulbcase {
+      position: absolute;
+      top: var(--bulbcase-top);
+      left: var(--bulbcase-left);
+      width: 100%;
+      height: 100%;
+      background: url('bulbcase.png') no-repeat center / contain;
+      transform: scale(var(--bulbcase-scale));
+      transform-origin: center;
+      pointer-events: none;
+      z-index: 2; /* on top of the light */
+      transition: transform 0.3s ease;
     }
 
     /* ── PULSING ANIMATIONS ── */
@@ -394,6 +416,8 @@
     <!-- RED WARNING LIGHT -->
     <div id="redlight-wrapper">
       <div id="redlight"></div>
+      <!-- BULB CASE OVERLAY -->
+      <div id="bulbcase"></div>
     </div>
 
     <!-- BOLTS -->
